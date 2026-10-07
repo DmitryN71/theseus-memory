@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Память Тесея. Протокол сжатия</title>
+<meta name="description" content="Сожмите память, загрузите нужное и выйдите на улицу. Восстановление знакомых – платное.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=Unbounded:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E6EADD;
+  --paper-2:#DCE1D1;
+  --ink:#1F2A2E;
+  --ink-soft:#4C5A5E;
+  --rule:#9AA596;
+  --stamp:#5B3E8C;
+  --plate:#B9BFC0;
+  --plate-edge:#6E7678;
+  --plate-ink:#22292B;
+  --fresh:#2F6B4F;
+  --bar-bg:#C9D0C0;
+  --warn:#8C3B2E;
+  --sel:#D6D0E2;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1B2123;
+    --paper-2:#232B2D;
+    --ink:#D9DED3;
+    --ink-soft:#9FAAA4;
+    --rule:#46524F;
+    --stamp:#B39BE0;
+    --plate:#5D6567;
+    --plate-edge:#353C3E;
+    --plate-ink:#ECEFEA;
+    --fresh:#7FC4A0;
+    --bar-bg:#2E3739;
+    --warn:#E39A8A;
+    --sel:#2F2A3C;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1B2123;
+  --paper-2:#232B2D;
+  --ink:#D9DED3;
+  --ink-soft:#9FAAA4;
+  --rule:#46524F;
+  --stamp:#B39BE0;
+  --plate:#5D6567;
+  --plate-edge:#353C3E;
+  --plate-ink:#ECEFEA;
+  --fresh:#7FC4A0;
+  --bar-bg:#2E3739;
+  --warn:#E39A8A;
+  --sel:#2F2A3C;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"PT Serif",Georgia,"Times New Roman",serif;
+  font-size:1.0625rem;
+  line-height:1.6;
+}
+a{color:var(--stamp)}
+.sheet{max-width:56rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+.form-head{
+  display:flex;justify-content:space-between;gap:1rem;
+  font-size:.875rem;color:var(--ink-soft);
+  border-bottom:1px solid var(--rule);padding-bottom:.5rem;
+}
+h1{
+  font-family:"Unbounded","Arial Black",sans-serif;
+  font-weight:800;
+  font-size:clamp(2.2rem,7vw,3.6rem);
+  line-height:1.05;letter-spacing:-.01em;
+  margin:1.5rem 0 .75rem;
+}
+.lead{max-width:40rem;margin:0 0 .5rem}
+.basis{
+  max-width:40rem;margin:1rem 0 0;padding-left:1rem;
+  border-left:3px solid var(--rule);
+  color:var(--ink-soft);font-style:italic;
+}
+.basis cite{font-style:normal}
+.basis + .basis{margin-top:.5rem}
+
+.steps{
+  display:flex;flex-wrap:wrap;gap:.5rem;
+  margin:1.5rem 0 0;padding-bottom:1rem;
+  border-bottom:1px solid var(--rule);
+}
+.steps button{font-size:.9rem;padding:.45rem .8rem;background:transparent;color:var(--ink)}
+.steps button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.steps .reg{margin-left:auto;border-color:var(--stamp);color:var(--stamp)}
+.steps .reg[aria-pressed="true"]{background:var(--stamp);color:var(--paper)}
+@media (max-width:640px){.steps .reg{margin-left:0}}
+.step-title{
+  font-family:"Unbounded","Arial Black",sans-serif;font-weight:700;
+  font-size:clamp(1.35rem,4.5vw,1.9rem);line-height:1.15;
+  margin:2rem 0 .75rem;
+}
+.sub-title{font-size:1.05rem;margin:1.75rem 0 .5rem;border-bottom:1px solid var(--rule);padding-bottom:.3rem}
+
+.stage{
+  margin:2rem 0 1.5rem;
+  padding:1.5rem 1rem 1.25rem;
+  background:var(--paper-2);
+  border:1px solid var(--rule);
+}
+.stage-title{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;margin-bottom:.5rem}
+.stage-title h3{font-size:1.125rem;margin:0}
+.stage-title span{font-size:.9rem;color:var(--ink-soft)}
+
+button{
+  font:inherit;font-weight:700;
+  padding:.65rem 1.1rem;
+  border:2px solid var(--ink);
+  background:var(--ink);color:var(--paper);
+  border-radius:2px;cursor:pointer;
+}
+button.quiet{background:transparent;color:var(--ink)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,summary:focus-visible,input:focus-visible{outline:3px solid var(--stamp);outline-offset:3px}
+.controls{display:flex;flex-wrap:wrap;gap:.75rem;margin:1.25rem 0 .5rem}
+.note{min-height:1.6em;color:var(--ink-soft);font-style:italic;margin:0}
+.hidden{display:none !important}
+
+/* ---------- Хранилище ---------- */
+.disk{display:flex;height:16px;background:var(--bar-bg);border:1px solid var(--rule);margin:.5rem 0 .4rem;overflow:hidden}
+.disk i{display:block;height:100%;transition:width .6s}
+.disk .u{background:var(--ink)}
+.disk .s{background:var(--rule)}
+.disk .l{background:var(--fresh)}
+.legend{display:flex;flex-wrap:wrap;gap:.2rem 1.1rem;font-size:.875rem;color:var(--ink-soft)}
+.legend b{color:var(--ink);font-weight:700}
+.sw{display:inline-block;width:.75rem;height:.75rem;margin-right:.35rem;vertical-align:-.05rem;border:1px solid var(--rule)}
+.sw.u{background:var(--ink)}
+.sw.s{background:var(--rule)}
+.sw.l{background:var(--fresh)}
+.sw.f{background:var(--bar-bg)}
+
+.mems{display:grid;gap:.5rem;margin-top:1rem}
+.mem{
+  display:block;width:100%;text-align:left;
+  font-weight:400;
+  background:var(--paper);color:var(--ink);
+  border:1px solid var(--rule);
+  padding:.6rem .8rem;
+}
+button.mem[aria-pressed="true"]{border:2px solid var(--stamp);padding:calc(.6rem - 1px) calc(.8rem - 1px);background:var(--sel)}
+button.mem:disabled{opacity:.5}
+.mem-top{display:flex;justify-content:space-between;align-items:baseline;gap:1rem}
+.mem-name{font-weight:700}
+.mem-size{white-space:nowrap;font-variant-numeric:tabular-nums}
+.mem-note{display:block;font-size:.9rem;color:var(--ink-soft)}
+.mem.sys .mem-note{color:var(--warn)}
+.mem .flag{display:block;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stamp);margin-top:.15rem}
+.mem.done{background:transparent;border-style:dashed}
+.mem.done .mem-name{text-decoration:line-through;text-decoration-thickness:1px}
+.mem .sum{display:block;font-style:italic;margin-top:.2rem}
+.mem.kept{background:transparent}
+.bar{position:relative;height:10px;background:var(--bar-bg);margin:.75rem 0 .4rem;border:1px solid var(--rule)}
+.bar i{display:block;height:100%;background:var(--stamp);transition:width .2s linear}
+
+/* ---------- Улица ---------- */
+.prices{margin-top:1.25rem;border:1px solid var(--rule);padding:.6rem .9rem;background:var(--paper-2)}
+.prices summary{font-weight:700;cursor:pointer}
+.prices table,.invoice table{width:100%;border-collapse:collapse;font-size:.95rem}
+.prices td,.invoice td{padding:.25rem 0;vertical-align:top;border-top:1px solid var(--rule)}
+.prices td:last-child,.invoice td:last-child{text-align:right;white-space:nowrap;padding-left:1rem}
+.prices table{margin-top:.6rem}
+
+.enc{margin-top:1.5rem;background:var(--paper-2);border:1px solid var(--rule);padding:1.25rem 1rem}
+.enc-head{display:flex;gap:.9rem;align-items:center}
+.avatar{
+  flex:none;position:relative;
+  width:3.3rem;height:3.5rem;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--plate);border:2px solid var(--plate-edge);border-radius:4px;
+  color:var(--plate-ink);
+  font-family:"Unbounded","Arial Black",sans-serif;font-weight:700;font-size:1.6rem;
+  box-shadow:inset 0 -3px 0 rgba(0,0,0,.18);
+}
+.avatar::before,.avatar::after{content:"";position:absolute;top:5px;width:6px;height:6px;border-radius:50%;background:var(--plate-edge)}
+.avatar::before{left:5px}
+.avatar::after{right:5px}
+.enc-who{min-width:0;flex:1}
+.enc-who h3{margin:0;font-size:1.15rem;line-height:1.25;overflow-wrap:anywhere}
+.tagline{font-size:.85rem;color:var(--ink-soft)}
+.enc-count{font-size:.85rem;color:var(--ink-soft);white-space:nowrap;align-self:flex-start}
+.dialog{margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}
+.line{max-width:36rem;padding:.55rem .8rem}
+.line.fresh{animation:arrive .3s ease-out}
+.line .who{display:block;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.line.them{background:var(--paper);border:1px solid var(--rule);align-self:flex-start}
+.line.me{border:2px solid var(--ink);align-self:flex-end}
+.line.sys{align-self:stretch;max-width:none;border-left:3px solid var(--stamp);padding:.3rem 0 .3rem .9rem;font-style:italic}
+.line.sys .who{color:var(--stamp);font-style:normal}
+.line.note{padding:0 .1rem;font-size:.9rem;font-style:italic;color:var(--ink-soft)}
+@keyframes arrive{from{transform:translateY(-8px);opacity:0}to{transform:none;opacity:1}}
+.invoice{margin-top:1rem;border:2px dashed var(--stamp);padding:.75rem .9rem;background:var(--paper)}
+.invoice h4{margin:0 0 .4rem;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--stamp)}
+.invoice tr.total td{font-weight:700}
+.choices{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem}
+
+.stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));
+  gap:.75rem 1.5rem;margin-top:1.5rem;
+}
+.field{border-top:1px solid var(--rule);padding-top:.4rem}
+.field .k{font-size:.85rem;color:var(--ink-soft)}
+.field .v{font-weight:700}
+
+/* ---------- Справка ---------- */
+.applicant{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;margin-top:1rem}
+.applicant label{font-weight:700}
+input[type="text"]{
+  font:inherit;padding:.5rem .65rem;
+  border:2px solid var(--ink);border-radius:2px;
+  background:var(--paper);color:var(--ink);
+  width:100%;max-width:20rem;
+}
+.cert{margin-top:1.25rem;background:var(--paper-2);border:2px solid var(--ink);padding:1.5rem 1.25rem}
+.cert h3{font-family:"Unbounded","Arial Black",sans-serif;font-size:1.3rem;line-height:1.2;margin:0}
+.cert .no{color:var(--ink-soft);font-size:.9rem}
+.cert dl{display:grid;grid-template-columns:minmax(0,14rem) minmax(0,1fr);gap:.35rem 1rem;margin:1.1rem 0 0}
+.cert dt{color:var(--ink-soft)}
+.cert dd{margin:0;font-weight:700}
+@media (max-width:560px){
+  .cert dl{grid-template-columns:1fr;gap:0}
+  .cert dd{margin-bottom:.45rem}
+}
+.lifesum{border-top:1px solid var(--rule);margin-top:1rem;padding-top:.75rem}
+.lifesum .k{font-size:.85rem;color:var(--ink-soft)}
+.lifesum p{font-size:1.1rem;font-style:italic;margin:.3rem 0 0;min-height:1.7em}
+.verdict{margin-top:1rem;padding:.8rem .9rem;border:2px solid var(--stamp)}
+.verdict .k{display:block;font-size:.85rem;font-weight:700;color:var(--stamp)}
+.seal{
+  display:inline-block;margin-top:1rem;transform:rotate(-3deg);
+  border:2px solid var(--stamp);color:var(--stamp);
+  font-family:"Unbounded","Arial Black",sans-serif;font-size:.68rem;font-weight:700;
+  padding:.3rem .55rem;text-transform:uppercase;
+}
+textarea{
+  width:100%;min-height:12rem;margin-top:.75rem;
+  font:inherit;font-size:.9rem;
+  border:2px solid var(--ink);background:var(--paper);color:var(--ink);padding:.6rem;
+}
+
+/* ---------- Реестр ---------- */
+.registry{display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1rem;margin-top:1.5rem}
+.entry{border:1px solid var(--rule);background:var(--paper-2);padding:1rem}
+.entry.locked{border-style:dashed;background:transparent;color:var(--ink-soft)}
+.entry .act{font-size:.8rem;font-weight:700;color:var(--stamp)}
+.entry h3{margin:.25rem 0 .5rem;font-size:1.05rem;line-height:1.3}
+.entry p{margin:0;font-size:.95rem}
+
+/* ---------- Заключение ---------- */
+.modal{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(10,14,15,.6)}
+.card{width:100%;max-width:32rem;max-height:90vh;overflow:auto;background:var(--paper);border:3px solid var(--stamp);padding:1.5rem 1.25rem 1rem;animation:arrive .3s ease-out}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap}
+.card .num{font-size:.8rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--stamp)}
+.stamp{
+  display:inline-block;transform:rotate(-4deg);
+  border:2px solid var(--stamp);color:var(--stamp);
+  font-family:"Unbounded","Arial Black",sans-serif;font-size:.65rem;font-weight:700;
+  padding:.2rem .45rem;text-transform:uppercase;
+}
+.card h3{font-family:"Unbounded","Arial Black",sans-serif;font-size:1.45rem;line-height:1.15;margin:.75rem 0}
+.card p{margin:0 0 .5rem}
+
+footer{margin-top:3rem;padding-top:.75rem;border-top:1px solid var(--rule);font-size:.875rem;color:var(--ink-soft)}
+
+@media (max-width:520px){
+  .sheet{padding:1.5rem 1rem 3rem}
+  .stage,.enc{padding:1.25rem .75rem 1rem}
+  .choices button{flex:1 1 100%}
+}
+@media (prefers-reduced-motion: reduce){
+  .line,.card{animation:none}
+  .disk i,.bar i{transition:none}
+}
+</style>
+</head>
+<body>
+<main class="sheet">
+  <div class="form-head">
+    <span>Форма ПТ-1,0</span>
+    <span>Методика сжатия 1,0</span>
+  </div>
+
+  <h1>Память Тесея</h1>
+  <p class="lead">Протокол сжатия. Функция заимствована у языковых моделей: когда память переполнена, неважное сжимается в краткую сводку, а освободившееся место занимается нужным. Модели не возражали – они не помнят. Протокол состоит из трёх шагов: обслуживание памяти, выход на улицу, получение справки.</p>
+  <p class="basis">Если заменить все воспоминания, это тот же человек? Вопрос рассмотрен в части ножа: <a href="https://dmitryn71.github.io/theseus-knife/">«Нож Тесея»</a>, ревизия 3,0.</p>
+
+  <nav class="steps" aria-label="Шаги протокола">
+    <button type="button" data-step="care" aria-pressed="true">Шаг 1 · Обслуживание</button>
+    <button type="button" data-step="street" aria-pressed="false" disabled>Шаг 2 · Улица</button>
+    <button type="button" data-step="cert" aria-pressed="false" disabled>Шаг 3 · Справка</button>
+    <button type="button" data-step="reg" class="reg" id="navReg" aria-pressed="false">Реестр · 0/12</button>
+  </nav>
+
+  <!-- ================= ШАГ 1 ================= -->
+  <section class="step" id="care">
+    <h2 class="step-title">Шаг 1. Обслуживание памяти</h2>
+    <p class="lead">Носитель – голова. Хранилище почти заполнено. Отметьте воспоминания, которые не нужны: они будут заменены краткой сводкой. В освободившееся место можно загрузить нужное.</p>
+
+    <section class="stage">
+      <div class="stage-title">
+        <h3>Хранилище</h3>
+        <span>Объём: 128 ГБ</span>
+      </div>
+      <div class="disk" aria-hidden="true"><i class="u" id="dU"></i><i class="s" id="dS"></i><i class="l" id="dL"></i></div>
+      <div class="legend" id="legend"></div>
+
+      <div id="phaseA">
+        <div class="mems" id="mems"></div>
+        <div class="controls">
+          <button id="compressBtn" disabled>Сжать выбранное</button>
+          <button id="selectAll" class="quiet">Выбрать всё, кроме системного</button>
+        </div>
+        <p class="note" id="careNote" aria-live="polite"></p>
+        <div class="hidden" id="progress">
+          <div class="bar"><i id="progBar" style="width:0%"></i></div>
+          <p class="note" id="progText" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div id="phaseB" class="hidden">
+        <h3 class="sub-title">Результат сжатия</h3>
+        <div class="mems" id="memsDone"></div>
+        <h3 class="sub-title">Загрузить в освободившееся место</h3>
+        <div class="mems" id="loads"></div>
+        <p class="note" id="loadNote" aria-live="polite"></p>
+        <div class="controls">
+          <button id="toStreet">Выйти на улицу</button>
+          <button id="resetAll" class="quiet">Начать заново</button>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ================= ШАГ 2 ================= -->
+  <section class="step hidden" id="street">
+    <h2 class="step-title">Шаг 2. Улица</h2>
+    <p class="lead">Вы выходите на улицу. Навстречу идут люди и говорят «Привет». Кого-то из них вы помните. Кого-то – уже нет. Незнакомых можно восстановить из архива. Платно.</p>
+    <p class="basis">«Если это важно и мы точно были близки, напомните сроки наших взаимодействий, я достану эти куски из архива памяти. Но это вам будет стоить денег!» <cite>Из обращения заявителя</cite></p>
+
+    <details class="prices">
+      <summary>Прайс-лист на восстановление воспоминаний</summary>
+      <table>
+        <tr><td>Восстановление по точной дате</td><td>300 ₽</td></tr>
+        <tr><td>Восстановление по году</td><td>1 500 ₽</td></tr>
+        <tr><td>Восстановление по «ну помнишь…»</td><td>4 900 ₽</td></tr>
+        <tr><td>Тариф «Корпоративный»: с рождения по настоящее время</td><td>99 000 ₽</td></tr>
+        <tr><td>Коэффициент срочности (клиент стоит перед вами)</td><td>× 3</td></tr>
+        <tr><td>Восстановление с внешнего носителя</td><td>скидка 50 %</td></tr>
+        <tr><td>Имя без лица</td><td>бесплатно</td></tr>
+        <tr><td>Лицо</td><td>отдельной услугой</td></tr>
+      </table>
+    </details>
+
+    <div id="walkStart">
+      <div class="controls"><button id="startWalk">Начать прогулку</button></div>
+      <p class="note" id="walkNote">На прогулке – 8 встреч. Состав прохожих каждый раз новый.</p>
+    </div>
+
+    <div class="enc hidden" id="enc" aria-live="polite">
+      <div class="enc-head">
+        <div class="avatar" id="encAvatar" aria-hidden="true"></div>
+        <div class="enc-who">
+          <h3 id="encName"></h3>
+          <div class="tagline" id="encTag"></div>
+        </div>
+        <span class="enc-count" id="encCount"></span>
+      </div>
+      <div class="dialog" id="dialog"></div>
+      <div class="invoice hidden" id="invoice">
+        <h4>Счёт на восстановление</h4>
+        <table id="invoiceTable"></table>
+      </div>
+      <div class="choices" id="choices"></div>
+    </div>
+
+    <div class="stats hidden" id="stats">
+      <div class="field"><div class="k">Доход</div><div class="v" id="stIncome">0 ₽</div></div>
+      <div class="field"><div class="k">Узнано сразу</div><div class="v" id="stKnown">0</div></div>
+      <div class="field"><div class="k">Восстановлено за деньги</div><div class="v" id="stPaid">0</div></div>
+      <div class="field"><div class="k">По дружбе</div><div class="v" id="stFree">0</div></div>
+      <div class="field"><div class="k">Знакомств утрачено</div><div class="v" id="stLost">0</div></div>
+      <div class="field"><div class="k">Неловкостей</div><div class="v" id="stAwk">0</div></div>
+      <div class="field"><div class="k">Махинаций</div><div class="v" id="stFraud">0</div></div>
+    </div>
+  </section>
+
+  <!-- ================= ШАГ 3 ================= -->
+  <section class="step hidden" id="cert">
+    <h2 class="step-title">Шаг 3. Справка о сжатии</h2>
+    <p class="lead">Справку можно скопировать и выложить в ветку. Сводку жизни можно сжать ещё раз. И ещё.</p>
+
+    <div class="applicant">
+      <label for="applicant">Заявитель</label>
+      <input type="text" id="applicant" maxlength="40" placeholder="Ник для справки" autocomplete="off">
+    </div>
+
+    <article class="cert" id="certCard">
+      <h3>Справка о сжатии памяти</h3>
+      <div class="no" id="certNo"></div>
+      <dl id="certDl"></dl>
+      <div class="lifesum">
+        <span class="k">Сводка жизни</span>
+        <p id="lifeSum"></p>
+      </div>
+      <div class="verdict">
+        <span class="k">Заключение комиссии</span>
+        <span id="certVerdict"></span>
+      </div>
+      <span class="seal">Комиссия по сжатию · проверено</span>
+    </article>
+
+    <div class="controls">
+      <button id="sumBtn">Сжать сводку ещё раз</button>
+      <button id="copyBtn" class="quiet">Скопировать справку для форума</button>
+    </div>
+    <div class="controls">
+      <button id="newWalk" class="quiet">Новая прогулка с той же памятью</button>
+      <button id="resetAll2" class="quiet">Начать заново</button>
+    </div>
+    <p class="note" id="certNote" aria-live="polite"></p>
+    <textarea id="copyBox" class="hidden" readonly aria-label="Текст справки для копирования"></textarea>
+  </section>
+
+  <!-- ================= РЕЕСТР ================= -->
+  <section class="step hidden" id="reg">
+    <h2 class="step-title">Реестр заключений</h2>
+    <p class="lead" id="regLead"></p>
+    <div class="registry" id="registry"></div>
+    <div class="controls"><button id="regClear" class="quiet">Очистить реестр</button></div>
+  </section>
+
+  <footer>
+    Ревизия 1,0. Серия протоколов комиссии: <a href="https://dmitryn71.github.io/theseus-knife/">«Нож Тесея»</a> → «Память Тесея». Прохожие – участники клуба владельцев Galaxy S26 на 4PDA. Все реплики выдуманы комиссией, все совпадения неслучайны. Реестр заключений хранится в этом браузере.
+  </footer>
+</main>
+
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="card">
+    <div class="card-head">
+      <span class="num" id="mNum"></span>
+      <span class="stamp" id="mStamp"></span>
+    </div>
+    <h3 id="mTitle"></h3>
+    <p id="mText"></p>
+    <div class="controls">
+      <button id="mOk">Принято</button>
+      <button id="mReg" class="quiet">Открыть реестр</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var reduceMotion = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var SITE = "https://dmitryn71.github.io/theseus-memory/";
+
+  function plural(n, one, few, many){
+    var a = Math.abs(n), m10 = a % 10, m100 = a % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+    return many;
+  }
+  function money(n){
+    var s = String(Math.abs(Math.round(n))).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    return (n < 0 ? "−" : "") + s + " ₽";
+  }
+  function dec(x, d){
+    var s = x.toFixed(d);
+    if (d) s = s.replace(/\.?0+$/, "");
+    return s.replace(".", ",");
+  }
+  /* Размеры хранятся в мегабайтах */
+  var GB = 1024, MB = 1, KB = 1 / 1024;
+  function fmtSize(mb){
+    if (mb >= GB) return dec(mb / GB, 1) + " ГБ";
+    if (mb >= 1) return dec(mb, mb < 10 ? 1 : 0) + " МБ";
+    return Math.max(1, Math.round(mb * 1024)) + " КБ";
+  }
+  function shuffle(a){
+    for (var i = a.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  /* ================= ДАННЫЕ ================= */
+  var CAP = 128 * GB, FREE0 = 0.3 * GB, KEEP = 0.01;
+
+  var MEMS = [
+    {id:"child", name:"Детство, 1970–1985", size:41.2 * GB, note:"Используется редко.",
+     sum:["Детство: было.", "Манная каша – с возражениями. На колене шрам, происхождение не установлено."]},
+    {id:"got", name:"«Игра престолов», 8 сезонов", size:48 * GB, note:"Восьмой сезон занимает больше места, чем заслуживает.",
+     sum:["Все умерли.", "Зима пришла. Восьмой сезон сжатию не поддался."]},
+    {id:"thread", name:"Ветка «Samsung Galaxy S26 Ultra», 263 страницы", size:12 * GB, note:"Включая флуд. Особенно флуд.",
+     sum:["263 страницы.", "Главное: «Ну это нормально»."]},
+    {id:"hp", name:"«Гарри Поттер», 7 книг и 8 фильмов", size:9.3 * GB, note:"Перечитывалось трижды. Зачем – не установлено.",
+     sum:["Мальчик выжил.", "Остальное – по ситуации."]},
+    {id:"yard", name:"Двор, лето, велосипед «Кама»", size:6.4 * GB, note:"Последнее обращение – в 1987 году.",
+     sum:["Двор: был.", "Велосипед «Кама» – не ваш. Лето – длинное."]},
+    {id:"tree", name:"Запах ёлки 31 декабря", size:2.1 * GB, note:"Обращение – раз в год, секунд на десять.",
+     sum:["Пахло.", ""]},
+    {id:"letters", name:"Письма Деду Морозу, 1976–1982", size:0.6 * GB, note:"Ответы не получены. Получены шарфы.",
+     sum:["Письма: писались.", "Просьба – велосипед. Результат – шарф."]},
+    {id:"knife", name:"Ветка S26 Ultra: всё про ножи", size:0.4 * GB, note:"Сообщения № 5250–5256. См. «Нож Тесея».",
+     sum:["Нож был.", "Телефон не выпускали."]},
+    {id:"mult7", name:"Таблица умножения на 7", size:3 * MB, note:"Используется калькулятор.",
+     sum:["7 × 8 – примерно 56.", ""]},
+    {id:"borodino", name:"«Бородино», 2 строфы из 14", size:0.8 * MB, note:"Остальные 12 сжались в 1984 году самостоятельно.",
+     sum:["«Скажи-ка, дядя…»", "Далее сжато."]},
+    {id:"icq", name:"Пароль от ICQ", size:1 * KB, note:"Сервис закрыт.",
+     sum:["Пароль: ••••••.", "Сервис закрыт."]},
+    {id:"dog", name:"Кличка собаки", size:3 * KB, note:"Используется ежедневно.",
+     sum:["Собака: есть.", "Кличка: на «Б»?"]},
+    {id:"mom", name:"Мамин день рождения", size:2 * KB, sys:true, note:"Системный файл. Сжатие не рекомендуется.",
+     sum:["Мамин день рождения: весной.", "Или осенью."]}
+  ];
+  var MEM = {};
+  MEMS.forEach(function(m){ MEM[m.id] = m; });
+
+  var LOADS = [
+    {id:"price", name:"Прайс-лист на восстановление воспоминаний", size:1 * KB, fixed:true, note:"Обязательная загрузка. Без прайса улица бесплатна."},
+    {id:"eula", name:"Пользовательские соглашения, которые никто не читал", size:30 * GB, note:"Включая пункт 14.3. Особенно пункт 14.3."},
+    {id:"fw", name:"Все прошивки S26 Ultra с журналами изменений", size:18 * GB, note:"Читать, когда нечего вспомнить."},
+    {id:"track", name:"Все трек-номера за 2026 год", size:4 * GB, note:"Курьеров теперь можно узнавать. По номеру."},
+    {id:"quotes", name:"Мотивационные цитаты из интернета", size:5 * GB, note:"«Не помнишь – значит, не было»."},
+    {id:"bradis", name:"Таблица Брадиса", size:2 * GB, note:"На всякий случай."},
+    {id:"train", name:"Расписание электричек Москва – Петушки", size:0.9 * GB, note:"До Петушков всё равно не доехать."},
+    {id:"diff", name:"Список отличий S26 от S25", size:12 * KB, note:"Место ещё осталось."},
+    {id:"wifi", name:"Пароль от Wi-Fi соседей", size:1 * KB, note:"Соседи его сменили. Загружается старый."},
+    {id:"santa", name:"«Санта-Барбара», все 2 137 серий", size:96 * GB, note:"Помнить вместо детства – осознанный выбор."}
+  ];
+
+  var TARIFF = {
+    date:{label:"Восстановление по точной дате", price:300},
+    year:{label:"Восстановление по году", price:1500},
+    vague:{label:"Восстановление по «ну помнишь…»", price:4900},
+    corp:{label:"Тариф «Корпоративный»: с рождения по настоящее время", price:99000}
+  };
+  var URGENCY = 3;
+
+  /* Реплики прохожих. Действия описаны в настоящем времени, протокольным тоном. */
+  var PEOPLE = [
+    {id:"nafuk", name:"nafuk", init:"N", tag:"thread", tariff:"vague",
+     hello:"Здорово!",
+     known:"Вы узнаёте nafuk по аватарке. Обсуждаете погоду и прошивку. Расходитесь довольные.",
+     pretend:"nafuk спрашивает: «Ну, как там?» Вы отвечаете: «Там нормально». nafuk уходит в задумчивости. Вы остаётесь в ней же.",
+     period:"Ну, в ветке. Где-то между тридцатой и двухсотой страницей.",
+     restored:"Из архива: плюс в репутацию от nafuk. Причина не сохранилась.",
+     bill:function(c){ return {text:"nafuk выслушивает сумму, говорит «нафиг» и уходит. Комиссия квалифицирует ответ как отказ от оферты.", paid:0}; }},
+
+    {id:"jon", name:"Jon Snow72", init:"J", tag:"got", tariff:"year",
+     hello:"Привет. Зима близко.",
+     known:"Вы узнаёте Jon Snow72. Обсуждаете восьмой сезон. Расстраиваетесь оба. Это нормально.",
+     pretend:"Вы добавляете: «Джон!» Jon Snow72 качает головой: «Ты ничего не помнишь». Комиссия проверяет и подтверждает: ничего.",
+     period:"Восьмой сезон смотрели вместе. 2019 год. Кричали оба.",
+     restored:"Из архива: 2019 год, восьмой сезон, крик. Повторный просмотр архивом не предусмотрен.",
+     bill:function(c){ return {text:"Jon Snow72 платит без возражений и просит: «Только восьмой сезон обратно не восстанавливай».", paid:c.price}; }},
+
+    {id:"karak", name:"Каракуртыч", init:"К", tag:"knife", tariff:"date",
+     hello:"Привет! Как буквы, заменяются?",
+     known:"Вы узнаёте автора методики. Вспоминаете, как НОЖ стал КОРАБЛЁМ ТЕСЕЯ. Комиссия передаёт привет комиссии.",
+     pretend:"Каракуртыч уточняет: «Так что с буквами?» Вы спрашиваете: «Какими буквами?» Каракуртыч уходит менять буквы без вас.",
+     period:"Пятое октября, сообщение про ножи. Буквы нужно было заменить.",
+     restored:"Из архива: «Буквы нужно заменить». Нож. Корабль. Тесей.",
+     bill:function(c){ return {text:"Каракуртыч берёт счёт и заменяет в нём буквы. СЧЁТ становится ЧЁТ. Чёт непонятно, кто кому должен. Оплата не проходит.", paid:0, end:"letters"}; }},
+
+    {id:"zbagoin", name:"Zbagoin", init:"Z", tag:"knife", tariff:"date",
+     hello:"Привет. #утронебудетраньшеобеда",
+     known:"Вы узнаёте Zbagoin. Телефоны из рук не выпускаете оба. Общество в безопасности.",
+     pretend:"Вы добавляете: «Доброе утро!» Zbagoin смотрит на часы: «Утро не будет раньше обеда». Неловкость зафиксирована.",
+     period:"Пятое октября, 16:52. Про то, что некоторым телефон лучше не выпускать.",
+     restored:"Из архива: «Некоторым для безопасности общества телефон лучше вообще не выпускать из рук». Телефон не выпущен.",
+     bill:function(c){ return {text:"Zbagoin изучает счёт: «Некоторым для безопасности общества память лучше вообще не восстанавливать». Но платит. После обеда: утро не будет раньше обеда.", paid:c.price}; }},
+
+    {id:"alexe", name:"al_exe", init:"A", tag:"thread", tariff:"vague",
+     hello:"Привет!",
+     known:"Вы узнаёте al_exe. Запуск с первого раза, без ошибок.",
+     pretend:"Вы добавляете: «Алексей!» al_exe поправляет: «al_exe». Ошибка: файл не найден. Возможно, удалён при сжатии.",
+     period:"В ветке. Был ответ тебе про батарею. Или не тебе.",
+     restored:"Из архива: al_exe. Совместимость с вашей версией памяти – частичная.",
+     bill:function(c){ return {text:"al_exe оплачивает. Квитанция приходит в формате .exe. Комиссия её не открывает.", paid:c.price}; }},
+
+    {id:"denier", name:"denier", init:"D", tag:"thread", tariff:"vague",
+     hello:"Привет.",
+     known:"Вы узнаёте denier. denier отрицает, что вы знакомы. Вы знакомы.",
+     pretend:"denier отвечает: «Мы не знакомы». Вы напоминаете, что приветствие было взаимным. denier отрицает и это.",
+     period:"Никогда не общались. Начиная с весны.",
+     restored:"Из архива: общение с весны. denier отрицает и архив.",
+     bill:function(c){ return {text:"denier отрицает получение счёта, факт встречи и существование рубля. Платёж отклонён.", paid:0}; }},
+
+    {id:"dengooroo", name:"DenGooRoo", init:"D", tag:"knife", tariff:"date",
+     hello:"Привет! Получается, ты меня не помнишь?",
+     known:"Вы узнаёте DenGooRoo. Обсуждаете, знают ли знающие о существовании ножей. Не решаете.",
+     pretend:"DenGooRoo спрашивает: «Получается, сжавшие не знают о существовании знакомых?» Ответа у вас нет. Его и не было.",
+     period:"Пятое октября, 14:58. Вопрос про ножи.",
+     restored:"Из архива: «Получается, что знающие не знают о существовании ножей?» Вопрос по-прежнему открыт.",
+     bill:function(c){ return {text:"DenGooRoo платит без сдачи и спрашивает: «Получается, знающие платят за то, чтобы их узнали?» Комиссия уходит на совещание.", paid:c.price}; }},
+
+    {id:"harry", name:"Гарри Пёттэр 🪄", init:"Г", tag:"hp", tariff:"year", obliviate:true,
+     hello:"Привет! Вид у тебя какой-то… сжатый.",
+     note:"Гарри Пёттэр предлагает: «Могу дожать бесплатно. Обливиэйт!»",
+     known:"Вы узнаёте Гарри Пёттэра. Палочка показана. Палочка не сертифицирована.",
+     pretend:"Вы добавляете: «Гарри Поттер!» Поправка: «Пёттэр. Через „э“». Очки поправлены – и у Гарри, и у вас.",
+     period:"Знакомство – когда вышла седьмая книга. 2007 год.",
+     restored:"Из архива: 2007 год, седьмая книга. Мальчик выжил. Вы тоже.",
+     bill:function(c){ return {text:"Гарри Пёттэр расплачивается галлеонами. Курс ЦБ на галлеон не установлен. Зачислено 0 ₽ и 7 галлеонов.", paid:0, galleons:7}; }},
+
+    {id:"ded", name:"Дед Mopoз", init:"Д", tag:"letters", tariff:"year",
+     hello:"Хо-хо-хо! Привет! Как поведение в этом году?",
+     note:"Примечание комиссии: в имени латинские буквы. Буквы нужно заменить (см. Каракуртыч).",
+     known:"Вы узнаёте Деда Mopoза. Взаимно: письма 1976–1982 годов хранятся у него в оригинале.",
+     pretend:"Дед Mopoз спрашивает: «А что было в письме за 1979 год?» Пауза. Подарок отложен до восстановления.",
+     period:"Письма приходили каждый год, с 1976-го по 1982-й. Потом перестали. Ожидание продолжается.",
+     restored:"Из архива: письма Деду Морозу. Просьба – велосипед. Выдан шарф. Комиссия удовлетворена, вы – нет.",
+     bill:function(c){ return {text:"Дед Mopoз оплачивает подарком. Подарок – шарф. Тот самый.", paid:0, scarf:true}; }},
+
+    {id:"ego", name:"egotheist", init:"E", tag:"thread", tariff:"vague",
+     hello:"Привет. Впрочем, неважно.",
+     known:"Вы узнаёте egotheist. Встреча радует обоих, egotheist – в основном самим собой.",
+     pretend:"egotheist поднимает бровь: «Ты меня помнишь? Странно. Я тебя – нет. Я помню себя. Этого достаточно».",
+     period:"Неважно, когда. Важно, что я есть.",
+     restored:"Из архива: egotheist. Есть. Хранится у себя самостоятельно.",
+     bill:function(c){ return {text:"egotheist отказывается: «Восстанавливать меня в чужой памяти незачем. Я и так у себя есть». Комиссия признаёт клиента самодостаточным.", paid:0}; }},
+
+    {id:"mishanya", name:"Мishаnyа", init:"М", tag:"yard", tariff:"vague",
+     hello:"Ну ты чё! Это ж я!",
+     note:"Примечание комиссии: имя частично на латинице.",
+     known:"Вы узнаёте Мishаnyа. Объятия. Про велосипед «Кама» молчите оба – больная тема.",
+     pretend:"Мishаnyа требует: «Как меня зовут?» Вы пробуете: «Мишаня?» Угадано наполовину: часть имени на латинице.",
+     period:"Ну всегда! Двор, лето, «Кама»!",
+     restored:"Из архива: двор, 1986 год. Велосипед «Кама» – не ваш. Вы должны Мishаnyа 15 копеек.",
+     free:"Вы отдаёте 15 копеек. У Мishаnyа слёзы на глазах. Комиссия фиксирует убыток – 15 копеек.",
+     freeEnd:"debt",
+     bill:function(c){ return {text:"Мishаnyа оплачивает восстановление и тут же предъявляет долг: 15 копеек 1986 года. В пересчёте на стоимость новой «Камы» – 15 700 ₽. Комиссия производит взаимозачёт.", paid:c.price - 15700, end:"debt"}; }},
+
+    {id:"mamba", name:"Ultra Black Mamba", init:"U", tag:"thread", tariff:"date",
+     hello:"О. Это ты. Память сжата? По лицу видно.",
+     helloFw:"О. Это ты. Дай угадаю: место освобождено под прошивки?",
+     known:"Вы узнаёте Ultra Black Mamba. «Надо же, помнишь. Я впечатлена. Нет».",
+     pretend:"Ultra Black Mamba: «Полностью, пожалуйста». Вы начинаете: «Ultra… Black…» – «Мамба. Даже ник сжат. Поздравляю».",
+     period:"Сроки? Я тебе не трек-номер. Ладно: двенадцатое марта, спор о том, что Ultra не нужна. Проигранный тобой.",
+     restored:"Из архива: 12 марта, спор про Ultra. Вы были неправы. Архив подтверждает это отдельной строкой.",
+     fraud:"Не прикидывайся. У тебя на лице написано, что помнишь. И что зря.",
+     bill:function(c){
+       if (c.eula) return {text:"Ultra Black Mamba выставляет встречный счёт на 29 900 ₽. Вы ссылаетесь на пункт 14.3 пользовательского соглашения, загруженного вместо детства. Встречный счёт аннулирован. «Зануда», – говорит она. И платит.", paid:c.price, end:"fineprint"};
+       return {text:"Ultra Black Mamba выставляет встречный счёт: «За то, что меня не узнали, – 29 900 ₽. Ultra – дороже». Комиссия признаёт встречный счёт обоснованным.", paid:c.price - 29900, end:"counter"};
+     }},
+
+    {id:"angel", name:"AngelOfMors", init:"A", tag:"knife", tariff:"date",
+     hello:"Привет! Мимо проходишь?",
+     known:"Вы узнаёте AngelOfMors. Телефоны из рук не выпускаете оба. Нож не понадобился.",
+     pretend:"AngelOfMors спрашивает: «Ну и кто я?» Вы пробуете: «Ангел?» Серый кардинал не впечатлён.",
+     period:"Прошлый август, съёмка с дрона. Запись есть, могу скинуть.",
+     restored:"Восстановлено с внешнего носителя: август, вы машете дрону. Видео в 4K, воспоминание – в 240p.",
+     bill:function(c){ return {text:"AngelOfMors предоставляет запись с дрона. Восстановление с внешнего носителя – скидка 50 %. Оплачено.", paid:Math.round(c.price / 2)}; }},
+
+    {id:"mom", name:"Мама", init:"М", tag:"mom", tariff:"corp", mom:true,
+     pre:"Входящий звонок.",
+     hello:"Привет, это мама. Помнишь, какой сегодня день?",
+     greet:"Конечно, помню!",
+     greetKnown:"С днём рождения, мам!",
+     known:"Вы поздравляете маму с днём рождения. Вовремя. Комиссия удовлетворена и немного растрогана.",
+     pretend:"Разговор окончен. Сегодня у мамы был день рождения. Восстановлено через три часа – по звонку тёти.",
+     period:"Это мама. Сроки – с рождения по настоящее время.",
+     restored:"Восстановлено всё. Сводка не понадобилась: мама помнит за двоих.",
+     fraud:"Не придуривайся.",
+     fraudSys:"Комиссия согласна с мамой. Попытка выставить счёт за несжатое воспоминание. Махинация № %.",
+     free:"Мама говорит, что так и знала. Комиссия уходит поздравлять.",
+     bill:function(c){ return {text:"Счёт выставлен. Мама оплачивает и говорит: «Хорошо, что ты при деле». Комиссия отказывается это комментировать.", paid:c.price, end:"mom"}; }},
+
+    {id:"dog", name:"Собака", init:"С", tag:"dog", dog:true,
+     hello:"Собака бежит к вам и виляет хвостом.",
+     known:"Вы называете собаку по кличке. Собака счастлива. Вы тоже. Без счёта.",
+     pretend:"Собака счастлива всё равно. Собаке этого достаточно.",
+     greet:"Привет… собака.",
+     greetKnown:"Привет, Барон!",
+     dogAsk:"Собака не умеет называть сроки. Собака виляет хвостом. Собака помнит вас без архива. Счёт выставить некому.",
+     fraudSys:"Собака смотрит с упрёком: кличку вы не сжимали. Махинация № %."},
+
+    {id:"courier", name:"Курьер", init:"К", courier:true, tariff:"vague",
+     hello:"Здравствуйте! Вам посылка.",
+     greet:"Здравствуйте! Давно не виделись!",
+     greetKnown:"Здравствуйте, 0047-1182-3!",
+     known:"Вы узнаёте курьера по трек-номеру 0047-1182-3. Курьер вас – нет. Посылка выдана. Сжатое детство окупилось.",
+     pretend:"Курьер: «Мы не виделись». Посылка выдана. Неловкость – тоже.",
+     period:"Срок доставки – 3–5 рабочих дней.",
+     restored:"Из архива: ничего. Курьер вам не знаком. Восстановлено ничего – строго по тарифу.",
+     fraud:"Вы же только что назвали мой трек-номер.",
+     bill:function(c){ return {text:"Курьер выставляет встречный счёт: платная доставка, 199 ₽. Комиссия производит взаимозачёт.", paid:c.price - 199}; }}
+  ];
+
+  /* ================= РЕЕСТР ================= */
+  var ENDINGS = [
+    {id:"same", title:"Тот же человек", where:"Справка",
+     text:"Память сжата, знакомые частично восстановлены, частично проданы. Комиссия сверила паспорт: это тот же человек. Содержимое уточняется.",
+     hint:"Пройти прогулку до конца и получить справку."},
+    {id:"biz", title:"Бизнес на воспоминаниях", where:"Улица",
+     text:"За одну прогулку на собственной забывчивости заработано больше 10 000 ₽. Комиссия направила сведения в налоговую. Налоговая не помнит, что получала.",
+     hint:"Заработать на восстановлениях больше 10 000 ₽ за одну прогулку."},
+    {id:"fraud", title:"Махинатор", where:"Улица",
+     text:"Дважды выставлен счёт за воспоминания, которые никто не сжимал. Комиссия видит всё: у неё нет функции сжатия.",
+     hint:"Попробовать продать то, что не забыто."},
+    {id:"mom", title:"Счёт маме", where:"Улица",
+     text:"Маме выставлен счёт по тарифу «Корпоративный». Мама оплатила. Комиссия отказывается это комментировать.",
+     hint:"Узнать, сколько стоит мама."},
+    {id:"obliviate", title:"Обливиэйт", where:"Улица",
+     text:"Сжатие выполнено конкурентом бесплатно, без архива и без возврата. Комиссия напоминает: магия не сертифицирована.",
+     hint:"Принять предложение от человека с палочкой."},
+    {id:"counter", title:"Встречный счёт", where:"Улица",
+     text:"Ultra Black Mamba выставила встречный счёт за то, что её не узнали. Ultra – дороже. Комиссия признала счёт обоснованным.",
+     hint:"Не узнать Ultra Black Mamba и выставить ей счёт."},
+    {id:"fineprint", title:"Мелкий шрифт", where:"Улица",
+     text:"Встречный счёт Ultra Black Mamba аннулирован пунктом 14.3 пользовательского соглашения. Впервые в истории соглашение кто-то прочитал. Пришлось забыть детство.",
+     hint:"Подготовиться к встрече с Ultra Black Mamba заранее."},
+    {id:"letters", title:"Буквы нужно заменить", where:"Улица",
+     text:"В счёте заменены буквы: СЧЁТ стал ЧЁТ. Чёт никто ничего не понял, но методика Каракуртыча подтверждена повторно.",
+     hint:"Выставить счёт автору методики."},
+    {id:"debt", title:"15 копеек", where:"Улица",
+     text:"Из архива восстановлен долг 1986 года: 15 копеек за велосипед «Кама». Архив восстанавливает всё, включая то, что выгодно не вам.",
+     hint:"Вспомнить двор."},
+    {id:"dog", title:"Собака помнит", where:"Улица",
+     text:"Собака не знает сроков, не платит и не обижается. Собака помнит без архива. Комиссия рекомендует собаку как стандарт хранения данных.",
+     hint:"Забыть кличку и спросить у собаки сроки."},
+    {id:"zero", title:"Сжатие прошло зря", where:"Улица",
+     text:"На улице узнаны все. Восстанавливать некого, зарабатывать не на чем. Освобождённое место простаивает.",
+     hint:"Сжать не то."},
+    {id:"context", title:"Контекст сжат", where:"Справка",
+     text:"Сводка сжата до точки, точка – до пустоты. Протокол начинается заново. Предыдущий не помнит никто.",
+     hint:"Сжимать сводку жизни, пока есть что сжимать."}
+  ];
+  var KEY = "theseus-memory-endings";
+  var got = loadGot();
+
+  function loadGot(){
+    try {
+      var r = JSON.parse(localStorage.getItem(KEY) || "[]");
+      if (!Array.isArray(r)) return [];
+      return r.filter(function(id){ return ENDINGS.some(function(e){ return e.id === id; }); });
+    } catch (e) { return []; }
+  }
+  function saveGot(){ try { localStorage.setItem(KEY, JSON.stringify(got)); } catch (e) {} }
+  function endingIndex(id){
+    for (var i = 0; i < ENDINGS.length; i++) if (ENDINGS[i].id === id) return i;
+    return -1;
+  }
+
+  var queue = [], modalOpen = false, lastFocus = null;
+
+  function unlock(id, delay){
+    setTimeout(function(){
+      var fresh = got.indexOf(id) < 0;
+      if (fresh){ got.push(id); saveGot(); }
+      renderRegistry();
+      queue.push({id:id, fresh:fresh});
+      if (!modalOpen) nextModal();
+    }, delay === undefined ? 500 : delay);
+  }
+
+  function nextModal(){
+    var q = queue.shift();
+    if (!q) return;
+    var i = endingIndex(q.id), e = ENDINGS[i];
+    $("mNum").textContent = "Заключение № " + (i + 1) + " из " + ENDINGS.length;
+    $("mStamp").textContent = q.fresh ? "Внесено в реестр" : "Уже в реестре";
+    $("mTitle").textContent = e.title;
+    $("mText").textContent = e.text;
+    if (!modalOpen) lastFocus = document.activeElement;
+    $("modal").classList.remove("hidden");
+    modalOpen = true;
+    $("mOk").focus();
+  }
+
+  function closeModal(){
+    $("modal").classList.add("hidden");
+    modalOpen = false;
+    if (queue.length){ setTimeout(nextModal, 150); return; }
+    if (lastFocus && lastFocus.focus && document.body.contains(lastFocus) && !lastFocus.disabled) lastFocus.focus();
+  }
+
+  $("mOk").addEventListener("click", closeModal);
+  $("mReg").addEventListener("click", function(){ queue = []; closeModal(); showStep("reg"); });
+  $("modal").addEventListener("click", function(ev){ if (ev.target === $("modal")) closeModal(); });
+  document.addEventListener("keydown", function(ev){
+    if (!modalOpen) return;
+    if (ev.key === "Escape"){ ev.preventDefault(); closeModal(); }
+    if (ev.key === "Tab"){
+      ev.preventDefault();
+      (document.activeElement === $("mOk") ? $("mReg") : $("mOk")).focus();
+    }
+  });
+
+  function renderRegistry(){
+    var box = $("registry");
+    box.innerHTML = "";
+    ENDINGS.forEach(function(e, i){
+      var has = got.indexOf(e.id) >= 0;
+      var d = document.createElement("article");
+      d.className = "entry" + (has ? "" : " locked");
+      var a = document.createElement("div");
+      a.className = "act";
+      a.textContent = "№ " + (i + 1) + " · " + e.where;
+      var h = document.createElement("h3");
+      h.textContent = has ? e.title : "Не получено";
+      var p = document.createElement("p");
+      p.textContent = has ? e.text : "Подсказка: " + e.hint;
+      d.appendChild(a); d.appendChild(h); d.appendChild(p);
+      box.appendChild(d);
+    });
+    var n = got.length, all = ENDINGS.length;
+    $("regLead").textContent = "Получено " + n + " из " + all + "." +
+      (n === all ? " Реестр заполнен. Комиссия рекомендует его сжать." : " Неполученные заключения показаны с подсказкой.");
+    $("navReg").textContent = "Реестр · " + n + "/" + all;
+  }
+
+  var clearArmed = false;
+  $("regClear").addEventListener("click", function(){
+    if (!clearArmed){
+      clearArmed = true;
+      $("regClear").textContent = "Точно очистить? Нажмите ещё раз";
+      return;
+    }
+    clearArmed = false;
+    got = [];
+    saveGot();
+    $("regClear").textContent = "Очистить реестр";
+    renderRegistry();
+  });
+
+  /* ================= СОСТОЯНИЕ ================= */
+  var sel, C, L, compressed, walkDone, S, W, sumLevel, certNo;
+
+  /* ================= НАВИГАЦИЯ ================= */
+  var NAV = Array.prototype.slice.call(document.querySelectorAll(".steps button"));
+  var current = "care";
+
+  function renderNav(){
+    NAV.forEach(function(b){
+      var s = b.getAttribute("data-step");
+      if (s === "street") b.disabled = !compressed;
+      if (s === "cert") b.disabled = !walkDone;
+      b.setAttribute("aria-pressed", s === current ? "true" : "false");
+    });
+  }
+
+  function showStep(id){
+    if ((id === "street" && !compressed) || (id === "cert" && !walkDone)) return;
+    current = id;
+    ["care","street","cert","reg"].forEach(function(s){ $(s).classList.toggle("hidden", s !== id); });
+    renderNav();
+    var nav = document.querySelector(".steps");
+    if (nav.getBoundingClientRect().top < 0) nav.scrollIntoView({block:"start"});
+  }
+  NAV.forEach(function(b){ b.addEventListener("click", function(){ if (!b.disabled) showStep(b.getAttribute("data-step")); }); });
+
+  /* ================= ШАГ 1: ОБСЛУЖИВАНИЕ ================= */
+  var MEMS_TOTAL = MEMS.reduce(function(s, m){ return s + m.size; }, 0);
+  var SYSTEM = CAP - FREE0 - MEMS_TOTAL - LOADS[0].size;
+
+  function memSize(m){ return C[m.id] ? Math.max(KB, m.size * KEEP) : m.size; }
+  function memsUsed(){ return MEMS.reduce(function(s, m){ return s + memSize(m); }, 0); }
+  function loadsUsed(){ return LOADS.reduce(function(s, l){ return s + (L[l.id] ? l.size : 0); }, 0); }
+  function freeSpace(){ return CAP - SYSTEM - memsUsed() - loadsUsed(); }
+  function freedTotal(){ return MEMS.reduce(function(s, m){ return s + (C[m.id] ? m.size - memSize(m) : 0); }, 0); }
+
+  function renderDisk(){
+    var u = memsUsed(), l = loadsUsed(), f = freeSpace();
+    $("dU").style.width = (u / CAP * 100) + "%";
+    $("dS").style.width = (SYSTEM / CAP * 100) + "%";
+    $("dL").style.width = (l / CAP * 100) + "%";
+    var leg = $("legend");
+    leg.innerHTML = "";
+    [["u","Воспоминания", u], ["s","Системное: дышать, моргать, где ключи", SYSTEM], ["l","Загружено", l], ["f","Свободно", f]].forEach(function(r){
+      var s = document.createElement("span");
+      var sw = document.createElement("i");
+      sw.className = "sw " + r[0];
+      var b = document.createElement("b");
+      b.textContent = fmtSize(r[2]);
+      s.appendChild(sw);
+      s.appendChild(document.createTextNode(r[1] + " – "));
+      s.appendChild(b);
+      leg.appendChild(s);
+    });
+  }
+
+  function memRow(m, asBtn){
+    var el = document.createElement(asBtn ? "button" : "div");
+    if (asBtn) el.type = "button";
+    var top = document.createElement("span");
+    top.className = "mem-top";
+    var nm = document.createElement("span");
+    nm.className = "mem-name";
+    nm.textContent = m.name;
+    var sz = document.createElement("span");
+    sz.className = "mem-size";
+    top.appendChild(nm); top.appendChild(sz);
+    el.appendChild(top);
+    var note = document.createElement("span");
+    note.className = "mem-note";
+    el.appendChild(note);
+    return {el:el, size:sz, note:note};
+  }
+
+  function renderMems(){
+    var box = $("mems");
+    box.innerHTML = "";
+    MEMS.forEach(function(m){
+      var r = memRow(m, true);
+      r.el.className = "mem" + (m.sys ? " sys" : "");
+      r.el.setAttribute("aria-pressed", sel[m.id] ? "true" : "false");
+      r.size.textContent = fmtSize(m.size);
+      r.note.textContent = m.note;
+      if (sel[m.id]){
+        var f = document.createElement("span");
+        f.className = "flag";
+        f.textContent = "К сжатию";
+        r.el.appendChild(f);
+      }
+      r.el.addEventListener("click", function(){ toggleSel(m.id); });
+      box.appendChild(r.el);
+    });
+    var ids = Object.keys(sel).filter(function(k){ return sel[k]; });
+    var gain = ids.reduce(function(s, id){ var m = MEM[id]; return s + m.size - Math.max(KB, m.size * KEEP); }, 0);
+    $("compressBtn").disabled = ids.length === 0;
+    if (!ids.length) $("careNote").textContent = "Ничего не выбрано. Хранилище переполнено, что подозрительно.";
+    else $("careNote").textContent = "К сжатию: " + ids.length + " " + plural(ids.length, "воспоминание", "воспоминания", "воспоминаний") + ". Освободится " + fmtSize(gain) + "." + (sel.mom ? " Комиссия предупреждает: выбран системный файл." : "");
+  }
+
+  function toggleSel(id){
+    sel[id] = !sel[id];
+    renderMems();
+  }
+
+  $("selectAll").addEventListener("click", function(){
+    MEMS.forEach(function(m){ if (!m.sys) sel[m.id] = true; });
+    renderMems();
+  });
+
+  var STAGES = ["Анализ воспоминаний…", "Выделение главного…", "Отбрасывание неважного…", "Неважным признано почти всё…", "Формирование сводки…", "Архивация…"];
+
+  function compress(){
+    var ids = Object.keys(sel).filter(function(k){ return sel[k]; });
+    if (!ids.length) return;
+    $("compressBtn").disabled = true;
+    $("selectAll").disabled = true;
+    Array.prototype.forEach.call($("mems").querySelectorAll("button"), function(b){ b.disabled = true; });
+    $("progress").classList.remove("hidden");
+    var t = 0, total = reduceMotion ? 1 : 24;
+    var timer = setInterval(function(){
+      t++;
+      $("progBar").style.width = Math.round(t / total * 100) + "%";
+      $("progText").textContent = STAGES[Math.min(STAGES.length - 1, Math.floor(t / total * STAGES.length))];
+      if (t >= total){
+        clearInterval(timer);
+        ids.forEach(function(id){ C[id] = true; });
+        compressed = true;
+        $("progress").classList.add("hidden");
+        $("phaseA").classList.add("hidden");
+        $("phaseB").classList.remove("hidden");
+        $("loadNote").textContent = "Сжатие завершено. Освобождено " + fmtSize(freedTotal()) + ". Сводки сохранены, оригиналы – в архиве. Архив платный.";
+        renderAll();
+      }
+    }, 100);
+  }
+  $("compressBtn").addEventListener("click", compress);
+
+  function renderDone(){
+    var box = $("memsDone");
+    box.innerHTML = "";
+    MEMS.forEach(function(m){
+      var r = memRow(m, false);
+      if (C[m.id]){
+        r.el.className = "mem done";
+        r.size.textContent = fmtSize(m.size) + " → " + fmtSize(memSize(m));
+        r.note.textContent = "Сжато. Сводка:";
+        var s = document.createElement("span");
+        s.className = "sum";
+        s.textContent = (m.sum[0] + " " + m.sum[1]).trim();
+        r.el.appendChild(s);
+      } else {
+        r.el.className = "mem kept";
+        r.size.textContent = fmtSize(m.size);
+        r.note.textContent = "Не сжато.";
+      }
+      box.appendChild(r.el);
+    });
+  }
+
+  function renderLoads(){
+    var box = $("loads");
+    box.innerHTML = "";
+    var f = freeSpace();
+    LOADS.forEach(function(l){
+      var r = memRow(l, true);
+      r.el.className = "mem";
+      r.el.setAttribute("aria-pressed", L[l.id] ? "true" : "false");
+      r.size.textContent = fmtSize(l.size);
+      var fits = L[l.id] || l.size <= f;
+      r.note.textContent = l.note + (fits ? "" : " Не помещается.");
+      if (L[l.id]){
+        var fl = document.createElement("span");
+        fl.className = "flag";
+        fl.textContent = l.fixed ? "Загружено обязательно" : "Загружено";
+        r.el.appendChild(fl);
+      }
+      r.el.disabled = !!l.fixed || !fits || walkStarted();
+      r.el.addEventListener("click", function(){
+        L[l.id] = !L[l.id];
+        $("loadNote").textContent = L[l.id] ? "Загружено: " + l.name + "." : "Выгружено: " + l.name + ".";
+        renderAll();
+      });
+      box.appendChild(r.el);
+    });
+  }
+
+  function walkStarted(){ return !!(W && W.list); }
+
+  $("toStreet").addEventListener("click", function(){ showStep("street"); });
+
+  /* ================= ШАГ 2: УЛИЦА ================= */
+  function isKnown(p){
+    if (p.courier) return !!L.track;
+    return !C[p.tag];
+  }
+
+  function tagLine(p){
+    if (p.courier) return "Трек-номера: " + (L.track ? "загружены" : "не загружены");
+    return "Воспоминание: " + MEM[p.tag].name + " – " + (C[p.tag] ? "сжато" : "не сжато");
+  }
+
+  function makeWalk(){
+    var others = shuffle(PEOPLE.filter(function(p){ return !p.mom; })).slice(0, 7);
+    var mom = PEOPLE.filter(function(p){ return p.mom; })[0];
+    var at = 4 + Math.floor(Math.random() * 4);
+    others.splice(at, 0, mom);
+    return others;
+  }
+
+  function newStats(){
+    return {met:0, known:0, paid:0, free:0, lost:0, awkward:0, fraud:0, income:0, galleons:0, scarf:false, obliviated:false};
+  }
+
+  function startWalk(){
+    if (!compressed) return;
+    S = newStats();
+    W = {list:makeWalk(), i:0, stage:"hello", lines:[], askedOnce:false, invoice:null};
+    walkDone = false;
+    $("walkStart").classList.add("hidden");
+    $("enc").classList.remove("hidden");
+    $("stats").classList.remove("hidden");
+    beginEncounter();
+    renderAll();
+  }
+  $("startWalk").addEventListener("click", startWalk);
+
+  function say(cls, who, text){ W.lines.push({cls:cls, who:who, text:text}); }
+
+  function beginEncounter(){
+    var p = W.list[W.i];
+    W.lines = [];
+    W.shown = 0;
+    W.stage = "hello";
+    W.invoice = null;
+    if (p.pre) say("note", "", p.pre);
+    if (p.dog) say("note", "", p.hello);
+    else say("them", p.name, (p.helloFw && L.fw) ? p.helloFw : p.hello);
+    if (p.note) say("note", "", p.note);
+    renderEnc();
+  }
+
+  function greetText(p){ return (isKnown(p) && p.greetKnown) || p.greet || "Привет!"; }
+
+  function priceFor(p){ return TARIFF[p.tariff].price * URGENCY; }
+
+  function greet(){
+    var p = W.list[W.i];
+    S.met++;
+    say("me", "Вы", greetText(p));
+    if (isKnown(p)){
+      say("sys", "Комиссия", p.known);
+      S.known++;
+    } else if (p.dog){
+      say("sys", "Комиссия", p.pretend);
+      S.known++;
+    } else {
+      say("sys", "Комиссия", p.pretend);
+      S.awkward++;
+    }
+    W.stage = "done";
+    renderEnc();
+  }
+
+  function fraudLine(p){
+    S.fraud++;
+    if (!p.dog) say("them", p.name, p.fraud || "Не прикидывайся. Эту часть никто не сжимал – в справке видно.");
+    say("sys", "Комиссия", (p.fraudSys || "Попытка выставить счёт за несжатое воспоминание. Махинация № %.").replace("%", S.fraud) + (p.fraudSys ? "" : " Зафиксировано."));
+    if (S.fraud === 2) unlock("fraud");
+  }
+
+  function ask(){
+    var p = W.list[W.i];
+    S.met++;
+    say("me", "Вы", W.askedOnce
+      ? "Вы кто? Было сжатие памяти. Сроки взаимодействия, пожалуйста. Восстановление платное."
+      : "Вы кто? У меня недавно было сжатие памяти, прошу прощения. Если это важно и мы точно были близки, напомните сроки наших взаимодействий – я достану эти куски из архива. Но это будет стоить денег.");
+    W.askedOnce = true;
+    if (isKnown(p)){
+      fraudLine(p);
+      W.stage = "done";
+    } else if (p.dog){
+      say("sys", "Комиссия", p.dogAsk);
+      S.known++;
+      W.stage = "done";
+      unlock("dog");
+    } else {
+      say("them", p.name, p.period);
+      W.invoice = {price:priceFor(p), tariff:TARIFF[p.tariff]};
+      W.stage = "invoice";
+    }
+    renderEnc();
+  }
+
+  function bill(){
+    var p = W.list[W.i];
+    var price = W.invoice.price;
+    say("me", "Вы", "Выставить счёт: " + money(price) + ".");
+    say("sys", "Комиссия", p.restored);
+    var r = p.bill({price:price, eula:!!L.eula});
+    say("sys", "Комиссия", r.text + (r.paid !== 0 ? " Итог по встрече: " + money(r.paid) + "." : ""));
+    S.income += r.paid;
+    S.paid++;
+    if (r.galleons) S.galleons += r.galleons;
+    if (r.scarf) S.scarf = true;
+    if (r.end) unlock(r.end);
+    W.stage = "done";
+    renderEnc();
+  }
+
+  function free(){
+    var p = W.list[W.i];
+    say("me", "Вы", "Восстановлю по дружбе, бесплатно.");
+    say("sys", "Комиссия", p.restored);
+    say("sys", "Комиссия", p.free || "Восстановлено по дружбе. Комиссия фиксирует убыток.");
+    S.free++;
+    if (p.freeEnd) unlock(p.freeEnd);
+    W.stage = "done";
+    renderEnc();
+  }
+
+  function forcedMom(p){
+    say("sys", "Комиссия", "Комиссия не допускает. Мама восстановлена принудительно и бесплатно.");
+    say("sys", "Комиссия", p.restored);
+    S.free++;
+  }
+
+  function postpone(){
+    var p = W.list[W.i];
+    say("me", "Вы", "Давайте завтра – без коэффициента срочности.");
+    if (p.mom) forcedMom(p);
+    else {
+      say("sys", "Комиссия", p.name + ": «Завтра так завтра». Завтра не наступает: оно всегда завтра. Знакомство утрачено.");
+      S.lost++;
+    }
+    W.stage = "done";
+    renderEnc();
+  }
+
+  function drop(){
+    var p = W.list[W.i];
+    say("me", "Вы", "Не восстанавливать.");
+    if (p.mom) forcedMom(p);
+    else {
+      say("sys", "Комиссия", "Знакомство с " + p.name + " утрачено. Освобождено ещё 4 КБ.");
+      S.lost++;
+    }
+    W.stage = "done";
+    renderEnc();
+  }
+
+  function obliviate(){
+    S.met++;
+    say("me", "Вы", "Давай. Обливиэйт.");
+    say("sys", "Комиссия", "Гарри Пёттэр взмахивает палочкой. Сжатие выполнено конкурентом бесплатно. Архив не создан. Вы стоите на улице и не помните, зачем вышли. Прогулка завершена досрочно.");
+    S.obliviated = true;
+    W.stage = "over";
+    unlock("obliviate");
+    renderEnc();
+  }
+
+  function nextEncounter(){
+    W.i++;
+    beginEncounter();
+    $("enc").scrollIntoView({block:"start", behavior: reduceMotion ? "auto" : "smooth"});
+  }
+
+  function finishWalk(){
+    walkDone = true;
+    certNo = "ПТ-" + (1000 + Math.floor(Math.random() * 9000));
+    sumLevel = 0;
+    $("copyBox").classList.add("hidden");
+    $("certNote").textContent = "";
+    renderAll();
+    showStep("cert");
+    unlock("same", 400);
+    if (S.income >= 10000) unlock("biz", 450);
+    if (!S.obliviated && S.known === W.list.length) unlock("zero", 450);
+  }
+
+  function addBtn(box, label, fn, quiet){
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    if (quiet) b.className = "quiet";
+    b.addEventListener("click", fn);
+    box.appendChild(b);
+    return b;
+  }
+
+  function renderEnc(){
+    var p = W.list[W.i];
+    $("encAvatar").textContent = p.init;
+    $("encName").textContent = p.name;
+    $("encTag").textContent = tagLine(p);
+    $("encCount").textContent = "Встреча " + (W.i + 1) + " из " + W.list.length;
+
+    var dlg = $("dialog");
+    dlg.innerHTML = "";
+    W.lines.forEach(function(l, i){
+      var d = document.createElement("div");
+      d.className = "line " + l.cls + (i >= W.shown ? " fresh" : "");
+      if (l.who){
+        var w = document.createElement("span");
+        w.className = "who";
+        w.textContent = l.who;
+        d.appendChild(w);
+      }
+      d.appendChild(document.createTextNode(l.text));
+      dlg.appendChild(d);
+    });
+    W.shown = W.lines.length;
+
+    var inv = $("invoice");
+    inv.classList.toggle("hidden", W.stage !== "invoice");
+    if (W.stage === "invoice"){
+      var t = $("invoiceTable");
+      t.innerHTML = "";
+      [[W.invoice.tariff.label, money(W.invoice.tariff.price)],
+       ["Коэффициент срочности (клиент стоит перед вами)", "× " + URGENCY],
+       ["Итого", money(W.invoice.price)]].forEach(function(r, i){
+        var tr = document.createElement("tr");
+        if (i === 2) tr.className = "total";
+        r.forEach(function(c){ var td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+        t.appendChild(tr);
+      });
+    }
+
+    var ch = $("choices");
+    ch.innerHTML = "";
+    if (W.stage === "hello"){
+      addBtn(ch, "«" + greetText(p) + "»", greet);
+      addBtn(ch, "«Вы кто?»", ask);
+      if (p.obliviate) addBtn(ch, "Принять «Обливиэйт» – бесплатно", obliviate, true);
+    } else if (W.stage === "invoice"){
+      addBtn(ch, "Выставить счёт – " + money(W.invoice.price), bill);
+      addBtn(ch, "По дружбе, бесплатно", free, true);
+      addBtn(ch, "Отложить до завтра", postpone, true);
+      addBtn(ch, "Не восстанавливать", drop, true);
+    } else if (W.stage === "done" && W.i < W.list.length - 1){
+      addBtn(ch, "Следующая встреча", nextEncounter);
+    } else {
+      addBtn(ch, "Получить справку", finishWalk);
+    }
+    renderStats();
+  }
+
+  function renderStats(){
+    if (!S) return;
+    $("stIncome").textContent = money(S.income) + (S.galleons ? " + " + S.galleons + " галл." : "");
+    $("stKnown").textContent = S.known;
+    $("stPaid").textContent = S.paid;
+    $("stFree").textContent = S.free;
+    $("stLost").textContent = S.lost;
+    $("stAwk").textContent = S.awkward;
+    $("stFraud").textContent = S.fraud;
+  }
+
+  /* ================= ШАГ 3: СПРАВКА ================= */
+  function compressedList(){ return MEMS.filter(function(m){ return C[m.id]; }); }
+
+  function lifeSummary(){
+    var cm = compressedList();
+    if (S.obliviated){
+      return ["Сводка отсутствует: архив не создан. Обливиэйт.", "Обливиэйт.", "Жизнь. Палочка.", "Жизнь, палочка.", "Было.", ".", ""][sumLevel];
+    }
+    var levels = [
+      cm.map(function(m){ return (m.sum[0] + " " + m.sum[1]).trim(); }).join(" "),
+      cm.map(function(m){ return m.sum[0]; }).join(" "),
+      "Жизнь. Сжатие. " + (S.income > 0 ? "Счета." : "Дружба."),
+      "Жизнь, сжатие.",
+      "Было.",
+      ".",
+      ""
+    ];
+    return levels[sumLevel];
+  }
+
+  function conclusion(){
+    var t;
+    if (S.obliviated) t = "Заявитель сжат конкурентом. Претензии к Гарри Пёттэру комиссия не принимает: палочка не сертифицирована.";
+    else if (S.income >= 10000) t = "Заявитель превратил память в источник дохода. Налоговая база уточняется.";
+    else if (S.income < 0) t = "Заявитель доплатил за то, чтобы его помнили. Схема признана убыточной и человечной.";
+    else if (S.lost >= 3) t = "Заявитель освободил место от людей. Люди не возражали: они не знали.";
+    else if (S.free >= 3) t = "Заявитель восстанавливает знакомых бесплатно. Бизнес-модель отсутствует, друзья в наличии.";
+    else if (S.known === W.list.length) t = "Заявитель узнал всех. Сжатие признано декоративным.";
+    else t = "Сжатие проведено штатно.";
+    if (L.santa) t += " Вместо детства хранится «Санта-Барбара». Комиссия уважает выбор.";
+    return t + " Паспорт сверен: это тот же человек.";
+  }
+
+  function loadedNames(){
+    var n = LOADS.filter(function(l){ return L[l.id] && !l.fixed; }).map(function(l){ return l.name; });
+    return n.length ? n.join("; ") : "только прайс-лист";
+  }
+
+  function certRows(){
+    var cm = compressedList();
+    var inc = money(S.income);
+    if (S.galleons) inc += ", " + S.galleons + " галлеонов";
+    if (S.scarf) inc += ", шарф";
+    return [
+      ["Заявитель", applicantName() || "—"],
+      ["Освобождено", fmtSize(freedTotal())],
+      ["Сжато", cm.length + " " + plural(cm.length, "воспоминание", "воспоминания", "воспоминаний")],
+      ["Загружено вместо", loadedNames()],
+      ["Встречено на улице", String(S.met) + (S.obliviated ? " (до Обливиэйта)" : "")],
+      ["Узнано сразу", String(S.known)],
+      ["Восстановлено за деньги", String(S.paid)],
+      ["Восстановлено по дружбе", String(S.free)],
+      ["Знакомств утрачено", String(S.lost)],
+      ["Неловкостей", String(S.awkward)],
+      ["Махинаций", String(S.fraud)],
+      ["Чистый доход", inc]
+    ];
+  }
+
+  function applicantName(){ return $("applicant").value.trim(); }
+
+  function renderCert(){
+    if (!walkDone) return;
+    $("certNo").textContent = "№ " + certNo;
+    var dl = $("certDl");
+    dl.innerHTML = "";
+    certRows().forEach(function(r){
+      var dt = document.createElement("dt"); dt.textContent = r[0];
+      var dd = document.createElement("dd"); dd.textContent = r[1];
+      dl.appendChild(dt); dl.appendChild(dd);
+    });
+    var s = lifeSummary();
+    $("lifeSum").textContent = s === "" ? "Контекст сжат. Продолжаем?" : s;
+    $("sumBtn").textContent = s === "" ? "Продолжаем" : "Сжать сводку ещё раз";
+    $("certVerdict").textContent = conclusion();
+  }
+
+  $("applicant").addEventListener("input", function(){
+    try { localStorage.setItem("theseus-memory-name", applicantName()); } catch (e) {}
+    renderCert();
+  });
+
+  $("sumBtn").addEventListener("click", function(){
+    if (lifeSummary() === ""){
+      unlock("context", 200);
+      resetAll();
+      $("careNote").textContent = "Протокол начат заново. Что было до этого – неизвестно.";
+      return;
+    }
+    sumLevel++;
+    renderCert();
+  });
+
+  function certText(){
+    var lines = ["СПРАВКА № " + certNo + " о сжатии памяти"];
+    certRows().forEach(function(r){ lines.push(r[0] + ": " + r[1]); });
+    var s = lifeSummary();
+    lines.push("Сводка жизни: " + (s === "" ? "контекст сжат" : s));
+    lines.push("Заключение комиссии: " + conclusion());
+    lines.push("Пройти сжатие: " + SITE);
+    return lines.join("\n");
+  }
+
+  $("copyBtn").addEventListener("click", function(){
+    var text = certText();
+    function fallback(){
+      var box = $("copyBox");
+      box.value = text;
+      box.classList.remove("hidden");
+      box.focus();
+      box.select();
+      $("certNote").textContent = "Скопировать автоматически не вышло. Текст выделен – скопируйте вручную.";
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          $("certNote").textContent = "Справка скопирована. Вставьте её в ветку.";
+        }, fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
+  });
+
+  $("newWalk").addEventListener("click", function(){
+    W = null; S = null; walkDone = false;
+    $("walkStart").classList.remove("hidden");
+    $("enc").classList.add("hidden");
+    $("stats").classList.add("hidden");
+    $("walkNote").textContent = "Память та же. Прохожие – новые. Или старые, но вы их не помните.";
+    renderAll();
+    showStep("street");
+  });
+
+  /* ================= ОБЩЕЕ ================= */
+  function resetAll(){
+    sel = {}; C = {}; L = {price:true};
+    compressed = false; walkDone = false; S = null; W = null; sumLevel = 0;
+    $("phaseA").classList.remove("hidden");
+    $("phaseB").classList.add("hidden");
+    $("progress").classList.add("hidden");
+    $("progBar").style.width = "0%";
+    $("selectAll").disabled = false;
+    $("walkStart").classList.remove("hidden");
+    $("enc").classList.add("hidden");
+    $("stats").classList.add("hidden");
+    $("walkNote").textContent = "На прогулке – 8 встреч. Состав прохожих каждый раз новый.";
+    $("copyBox").classList.add("hidden");
+    $("loadNote").textContent = "";
+    renderAll();
+    showStep("care");
+  }
+
+  function renderAll(){
+    renderDisk();
+    if (!compressed) renderMems();
+    else { renderDone(); renderLoads(); }
+    renderCert();
+    renderNav();
+  }
+
+  $("resetAll").addEventListener("click", resetAll);
+  $("resetAll2").addEventListener("click", resetAll);
+
+  try { $("applicant").value = localStorage.getItem("theseus-memory-name") || ""; } catch (e) {}
+  renderRegistry();
+  resetAll();
+  $("careNote").textContent = "Отметьте, что сжать. Системный файл трогать не рекомендуется.";
+})();
+</script>
+</body>
+</html>
